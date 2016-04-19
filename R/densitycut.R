@@ -516,6 +516,9 @@ MergeCluster = function(label, V.assign,
 #' @param knn.index An N*K data matrix for the nearest neighbour indices
 #' @param knn.dist An N*K data matrix for the nearest neighbour distances
 #' 
+#' @param threshold A number between 0 and 1 specifying the saliency index to cut the tree. 
+#' If not specified, it is selecting by stability analysis of the clustering tree
+#' 
 #' @param V The initial density vector of length N
 #' @param D The dimensionality of data 
 #' @param G A sparse Knn graph, reseaved for extension
@@ -572,7 +575,7 @@ MergeCluster = function(label, V.assign,
 #' col = AssignLabelColor(distinct.col, a$cluster)
 #' NeatPlot(x, col=col, pch=4, cex=0.5)
 #'
-DensityCut = function(X, K, knn.index, knn.dist, V, D, G, 
+DensityCut = function(X, K, knn.index, knn.dist, V, D, G, threshold, 
                       alpha=0.90, nu=seq(0.0, 1.0, by=0.05), 
                       adjust=TRUE, maxit=50, eps=1e-5, 
                       col, show.plot=TRUE, show.tip.label=FALSE,  
@@ -595,6 +598,9 @@ DensityCut = function(X, K, knn.index, knn.dist, V, D, G,
     
     if (missing(K)) {
       K = ceiling(log2(N))
+      if (K %% 2 != 0) {
+        K = K + 1
+      }
     }
     
     if (!missing(X) & (missing(knn.index) | missing(knn.dist))) {
@@ -716,9 +722,16 @@ DensityCut = function(X, K, knn.index, knn.dist, V, D, G,
   if (is.list(V.assign)) {
     V.assign = unlist(V.assign)
   }
-
+  
   #=--------------------------------------------------
-  if (show.plot == TRUE & D >= 2) {
+  if (!missing(threshold)) {
+    if (threshold >= 1) {
+      return(list(cluster=V.assign, mode=local.maxima, V=V))
+    }
+  }
+  
+  #=--------------------------------------------------
+  if (show.plot == TRUE) {
     unique.label = length(unique(V.assign))
     if (missing(col)) {
       col = densitycut::distinct.col
@@ -727,6 +740,8 @@ DensityCut = function(X, K, knn.index, knn.dist, V, D, G,
     if (unique.label > length(col)) {
       col = colorRampPalette(col)(unique.label)
     }
+  } else {
+    col = NULL
   }
   
   #---------------------------------------------------
@@ -745,7 +760,13 @@ DensityCut = function(X, K, knn.index, knn.dist, V, D, G,
                    show.plot=show.plot, 
                    text=text,
                    xlab=xlab)
-  level = SelectCluster(label, show.plot=show.plot, xlab=xlab)
+  
+  if (!missing(threshold)) {
+    id = which.min(abs(threshold - nu))
+    level = colnames(label)[id]
+  } else {
+    level = SelectCluster(label, show.plot=show.plot, xlab=xlab)  
+  }
   
   tmp  = label[, level]
   names(tmp) = mode.name
